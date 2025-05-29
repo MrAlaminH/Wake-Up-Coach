@@ -1,4 +1,3 @@
-````markdown
 # ☀️ Student Wake-Up Coach – Motivational Alarm Call Agent
 
 A smart, motivational wake-up solution built with **Next.js**, powered by **Supabase** for backend/auth, and integrated with **Vapi.ai** to deliver personalized AI voice calls. Designed to help students start their day with intention, confidence, and clarity.
@@ -143,4 +142,7 @@ This project is licensed under the [MIT License](LICENSE).
 If you love this idea, ⭐️ the repo and share with a student who needs a wake-up call!
 
 Got questions? Reach out or open an issue — we're here to help.
-````
+
+```
+
+```
