@@ -1,71 +1,132 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { CallCard } from "@/components/call-card"
-import { StatsCards } from "@/components/stats-cards"
-import { ProtectedRoute } from "@/components/protected-route"
-import { DatabaseStatus } from "@/components/database-status"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
-import { AppSidebar } from "@/components/app-sidebar"
-import { useAuth } from "@/components/auth-provider"
-import { Plus } from 'lucide-react'
-import Link from "next/link"
-import type { WakeCall, CallStats } from "@/types"
-
-// Mock data - will be replaced with real data once database is set up
-const mockCalls: WakeCall[] = [
-  {
-    id: "1",
-    user_id: "user1",
-    scheduled_at: "2024-01-15T07:00:00Z",
-    reason: "Important client meeting",
-    status: "scheduled",
-    retries: 0,
-    created_at: "2024-01-10T10:00:00Z",
-  },
-  {
-    id: "2",
-    user_id: "user1",
-    scheduled_at: "2024-01-12T06:30:00Z",
-    reason: "Flight to New York",
-    status: "completed",
-    retries: 0,
-    created_at: "2024-01-08T15:30:00Z",
-  },
-  {
-    id: "3",
-    user_id: "user1",
-    scheduled_at: "2024-01-10T08:00:00Z",
-    reason: "Job interview",
-    status: "failed",
-    retries: 2,
-    created_at: "2024-01-05T12:00:00Z",
-  },
-]
-
-const mockStats: CallStats = {
-  totalCalls: 15,
-  successfulCalls: 12,
-  failedCalls: 3,
-  upcomingCalls: 2,
-  successRate: 80,
-}
+import { useState, useEffect } from "react";
+import { CallCard } from "@/components/call-card";
+import { StatsCards } from "@/components/stats-cards";
+import { ProtectedRoute } from "@/components/protected-route";
+import { DatabaseStatus } from "@/components/database-status";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { AppSidebar } from "@/components/app-sidebar";
+import { useAuth } from "@/components/auth-provider";
+import { Plus } from "lucide-react";
+import Link from "next/link";
+import type { WakeCall, CallStats } from "@/types";
+import { supabase } from "./utils"; // Import supabase client
 
 export default function DashboardPage() {
-  const [calls, setCalls] = useState<WakeCall[]>(mockCalls)
-  const [stats, setStats] = useState<CallStats>(mockStats)
-  const { user } = useAuth()
+  const [calls, setCalls] = useState<WakeCall[]>([]); // Initialize calls as empty array
+  const [stats, setStats] = useState<CallStats | null>(null); // Initialize stats as null
+  const [loading, setLoading] = useState(true); // Add loading state
+  const [error, setError] = useState<string | null>(null); // Add error state
+  const { user } = useAuth();
 
-  const upcomingCalls = calls.filter((call) => new Date(call.scheduled_at) > new Date() && call.status === "scheduled")
-  const pastCalls = calls.filter((call) => new Date(call.scheduled_at) <= new Date() || call.status !== "scheduled")
+  // Fetch data from Supabase on component mount
+  useEffect(() => {
+    const fetchCalls = async () => {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("wake_calls")
+        .select("*")
+        .order("scheduled_at", { ascending: true });
 
-  const handleCancelCall = (id: string) => {
-    setCalls((prev) => prev.filter((call) => call.id !== id))
-    // In real app, make API call to cancel the call
-  }
+      if (error) {
+        console.error("Error fetching calls:", error);
+        setError(error.message);
+        setLoading(false);
+      } else {
+        setCalls(data as WakeCall[]);
+        // Calculate stats from fetched data
+        const totalCalls = data.length;
+        const successfulCalls = data.filter(
+          (call) => call.status === "completed"
+        ).length;
+        const failedCalls = data.filter(
+          (call) => call.status === "failed"
+        ).length;
+        const upcomingCalls = data.filter(
+          (call) =>
+            new Date(call.scheduled_at) > new Date() &&
+            call.status === "scheduled"
+        ).length;
+        const successRate =
+          totalCalls === 0
+            ? 0
+            : Math.round((successfulCalls / totalCalls) * 100);
+        setStats({
+          totalCalls,
+          successfulCalls,
+          failedCalls,
+          upcomingCalls,
+          successRate,
+        });
+        setLoading(false);
+      }
+    };
+
+    fetchCalls();
+  }, []); // Empty dependency array ensures this runs once on mount
+
+  const upcomingCalls = calls.filter(
+    (call) =>
+      new Date(call.scheduled_at) > new Date() && call.status === "scheduled"
+  );
+  const pastCalls = calls.filter(
+    (call) =>
+      new Date(call.scheduled_at) <= new Date() || call.status !== "scheduled"
+  );
+
+  const handleCancelCall = async (id: string) => {
+    // Make function async
+    const { error } = await supabase.from("wake_calls").delete().eq("id", id);
+
+    if (error) {
+      console.error("Error cancelling call:", error);
+      // Optionally, show an error message to the user
+    } else {
+      // Update state only if delete was successful
+      setCalls((prev) => {
+        const updatedCalls = prev.filter((call) => call.id !== id);
+        // Re-calculate stats based on updatedCalls
+        setStats((prevStats) => {
+          if (!prevStats) return null;
+          const totalCalls = updatedCalls.length;
+          const successfulCalls = updatedCalls.filter(
+            (call) => call.status === "completed"
+          ).length;
+          const failedCalls = updatedCalls.filter(
+            (call) => call.status === "failed"
+          ).length;
+          // Recalculate upcoming calls count based on the updated list
+          const upcomingCallsCount = updatedCalls.filter(
+            (call) =>
+              new Date(call.scheduled_at) > new Date() &&
+              call.status === "scheduled"
+          ).length;
+          const successRate =
+            totalCalls === 0
+              ? 0
+              : Math.round((successfulCalls / totalCalls) * 100);
+          return {
+            totalCalls,
+            successfulCalls,
+            failedCalls,
+            upcomingCalls: upcomingCallsCount,
+            successRate,
+          };
+        });
+        return updatedCalls; // Return the updated calls array
+      });
+    }
+  };
 
   return (
     <ProtectedRoute>
@@ -77,23 +138,36 @@ export default function DashboardPage() {
           </div>
           <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
             <DatabaseStatus />
-            
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold">
-                  Welcome back, {user?.user_metadata?.name || user?.email?.split('@')[0] || 'User'}!
-                </h1>
-                <p className="text-muted-foreground">Manage your wake-up calls and view statistics</p>
-              </div>
-              <Button asChild>
-                <Link href="/schedule">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Schedule New Call
-                </Link>
-              </Button>
-            </div>
 
-            <StatsCards stats={stats} />
+            {/* Display loading or error messages */}
+            {loading && <p>Loading calls...</p>}
+            {error && <p className="text-red-500">Error: {error}</p>}
+
+            {!loading && !error && (
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="text-3xl font-bold">
+                    Welcome back,{" "}
+                    {user?.user_metadata?.name ||
+                      user?.email?.split("@")[0] ||
+                      "User"}
+                    !
+                  </h1>
+                  <p className="text-muted-foreground">
+                    Manage your wake-up calls and view statistics
+                  </p>
+                </div>
+                <Button asChild>
+                  <Link href="/schedule">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Schedule New Call
+                  </Link>
+                </Button>
+              </div>
+            )}
+
+            {/* Pass stats only when not loading and no error */}
+            {!loading && !error && stats && <StatsCards stats={stats} />}
 
             <Tabs defaultValue="upcoming" className="space-y-4">
               <TabsList>
@@ -105,26 +179,37 @@ export default function DashboardPage() {
                 <Card>
                   <CardHeader>
                     <CardTitle>Upcoming Wake-Up Calls</CardTitle>
-                    <CardDescription>Your scheduled calls that haven't been completed yet</CardDescription>
+                    <CardDescription>
+                      Your scheduled calls that haven't been completed yet
+                    </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    {upcomingCalls.length > 0 ? (
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {upcomingCalls.map((call) => (
-                          <CallCard key={call.id} call={call} onCancel={handleCancelCall} />
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-8">
-                        <p className="text-muted-foreground mb-4">No upcoming calls scheduled</p>
-                        <Button asChild>
-                          <Link href="/schedule">
-                            <Plus className="mr-2 h-4 w-4" />
-                            Schedule Your First Call
-                          </Link>
-                        </Button>
-                      </div>
-                    )}
+                    {/* Display upcoming calls only when not loading and no error */}
+                    {!loading &&
+                      !error &&
+                      (upcomingCalls.length > 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {upcomingCalls.map((call) => (
+                            <CallCard
+                              key={call.id}
+                              call={call}
+                              onCancel={handleCancelCall}
+                            />
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-8">
+                          <p className="text-muted-foreground mb-4">
+                            No upcoming calls scheduled
+                          </p>
+                          <Button asChild>
+                            <Link href="/schedule">
+                              <Plus className="mr-2 h-4 w-4" />
+                              Schedule Your First Call
+                            </Link>
+                          </Button>
+                        </div>
+                      ))}
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -133,20 +218,27 @@ export default function DashboardPage() {
                 <Card>
                   <CardHeader>
                     <CardTitle>Call History</CardTitle>
-                    <CardDescription>Your past wake-up calls and their outcomes</CardDescription>
+                    <CardDescription>
+                      Your past wake-up calls and their outcomes
+                    </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    {pastCalls.length > 0 ? (
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {pastCalls.map((call) => (
-                          <CallCard key={call.id} call={call} />
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-8">
-                        <p className="text-muted-foreground">No call history available</p>
-                      </div>
-                    )}
+                    {/* Display past calls only when not loading and no error */}
+                    {!loading &&
+                      !error &&
+                      (pastCalls.length > 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {pastCalls.map((call) => (
+                            <CallCard key={call.id} call={call} />
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-8">
+                          <p className="text-muted-foreground">
+                            No call history available
+                          </p>
+                        </div>
+                      ))}
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -155,5 +247,5 @@ export default function DashboardPage() {
         </main>
       </SidebarProvider>
     </ProtectedRoute>
-  )
+  );
 }

@@ -155,11 +155,35 @@ export function CallSchedulerForm({
 
       case "date":
         if (!value) return "Date is required";
-        if (value < new Date()) return "Please select a future date";
+        // Allow today's date, but not past dates
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (value < today) return "Please select today's or a future date";
         return undefined;
 
       case "time":
         if (!value?.trim()) return "Time is required";
+        // If date is selected and it's today, validate time is in the future
+        if (date) {
+          const selectedDateTime = new Date(date);
+          const [hours, minutes] = value.split(":");
+          selectedDateTime.setHours(parseInt(hours, 10));
+          selectedDateTime.setMinutes(parseInt(minutes, 10));
+          selectedDateTime.setSeconds(0);
+          selectedDateTime.setMilliseconds(0);
+
+          const now = new Date();
+
+          // Check if the selected date is today
+          const isToday =
+            selectedDateTime.getFullYear() === now.getFullYear() &&
+            selectedDateTime.getMonth() === now.getMonth() &&
+            selectedDateTime.getDate() === now.getDate();
+
+          if (isToday && selectedDateTime <= now) {
+            return "Please select a future time for today";
+          }
+        }
         return undefined;
 
       case "reason":
@@ -365,7 +389,13 @@ export function CallSchedulerForm({
                     mode="single"
                     selected={date}
                     onSelect={setDate}
-                    disabled={(date) => date < new Date() || isLoading}
+                    disabled={(day) => {
+                      const today = new Date();
+                      today.setHours(0, 0, 0, 0);
+                      const selectedDay = new Date(day);
+                      selectedDay.setHours(0, 0, 0, 0);
+                      return selectedDay < today || isLoading;
+                    }}
                     initialFocus
                   />
                 </PopoverContent>
