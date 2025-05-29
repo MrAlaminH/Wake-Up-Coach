@@ -1,11 +1,22 @@
-"use client"
+"use client";
 
-import { Calendar, Phone, Settings, Clock, BarChart3, LogOut, Sun, Moon, Puzzle, User } from 'lucide-react'
-import Link from "next/link"
-import { usePathname } from "next/navigation"
-import { useTheme } from "next-themes"
-import { useAuth } from "@/components/auth-provider"
-import { useToast } from "@/hooks/use-toast"
+import {
+  Calendar,
+  Phone,
+  Settings,
+  Clock,
+  BarChart3,
+  LogOut,
+  Sun,
+  Moon,
+  Puzzle,
+  User,
+} from "lucide-react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useTheme } from "next-themes";
+import { useAuth } from "@/components/auth-provider";
+import { useToast } from "@/hooks/use-toast";
 
 import {
   Sidebar,
@@ -18,9 +29,15 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-} from "@/components/ui/sidebar"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+} from "@/components/ui/sidebar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 const menuItems = [
   {
@@ -33,39 +50,39 @@ const menuItems = [
     url: "/schedule",
     icon: Calendar,
   },
-  {
-    title: "Call History",
-    url: "/history",
-    icon: Clock,
-  },
+  // {
+  //   title: "Call History",
+  //   url: "/history",
+  //   icon: Clock,
+  // },
   {
     title: "Integrations",
     url: "/integrations",
     icon: Puzzle,
   },
-]
+];
 
 export function AppSidebar() {
-  const pathname = usePathname()
-  const { setTheme } = useTheme()
-  const { user, signOut } = useAuth()
-  const { toast } = useToast()
+  const pathname = usePathname();
+  const { setTheme } = useTheme();
+  const { user, signOut } = useAuth();
+  const { toast } = useToast();
 
   const handleLogout = async () => {
     try {
-      await signOut()
+      await signOut();
       toast({
         title: "Signed out successfully",
         description: "You have been logged out of your account.",
-      })
+      });
     } catch (error) {
       toast({
         title: "Error",
         description: "Failed to sign out. Please try again.",
         variant: "destructive",
-      })
+      });
     }
-  }
+  };
 
   const getUserInitials = (name?: string, email?: string) => {
     if (name) {
@@ -73,13 +90,13 @@ export function AppSidebar() {
         .split(" ")
         .map((n) => n[0])
         .join("")
-        .toUpperCase()
+        .toUpperCase();
     }
     if (email) {
-      return email.substring(0, 2).toUpperCase()
+      return email.substring(0, 2).toUpperCase();
     }
-    return "U"
-  }
+    return "U";
+  };
 
   return (
     <Sidebar>
@@ -130,14 +147,19 @@ export function AppSidebar() {
               </DropdownMenuContent>
             </DropdownMenu>
           </SidebarMenuItem>
-          
+
           {user && (
             <SidebarMenuItem>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <SidebarMenuButton className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground">
                     <Avatar className="h-6 w-6">
-                      <AvatarImage src={user.user_metadata?.avatar_url || "/placeholder.svg"} alt={user.user_metadata?.name || user.email} />
+                      <AvatarImage
+                        src={
+                          user.user_metadata?.avatar_url || "/placeholder.svg"
+                        }
+                        alt={user.user_metadata?.name || user.email}
+                      />
                       <AvatarFallback className="text-xs">
                         {getUserInitials(user.user_metadata?.name, user.email)}
                       </AvatarFallback>
@@ -165,7 +187,7 @@ export function AppSidebar() {
                     </div>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem 
+                  <DropdownMenuItem
                     onClick={handleLogout}
                     className="text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-950"
                   >
@@ -179,5 +201,5 @@ export function AppSidebar() {
         </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
-  )
+  );
 }

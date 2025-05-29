@@ -10,6 +10,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO } from "date-fns";
+import { supabase } from "../dashboard/utils"; // Import supabase client
 
 const FORM_STORAGE_KEY = "schedule_form_data";
 const WEBHOOK_URL =
@@ -76,52 +77,105 @@ export default function SchedulePage() {
 
           <CallSchedulerForm
             onSubmit={async (data) => {
+              // Calculate the schedule time by combining date and time
+              const dateObj = parseISO(data.date);
+              const [hours, minutes] = data.time.split(":");
+              dateObj.setHours(parseInt(hours, 10));
+              dateObj.setMinutes(parseInt(minutes, 10));
+              dateObj.setSeconds(0);
+              dateObj.setMilliseconds(0);
+
+              const scheduleTime = dateObj.toISOString();
+
+              // Data to be inserted into Supabase and sent to webhook
+              const payload = {
+                user_id: user?.id, // Get user ID from auth hook
+                scheduled_at: scheduleTime,
+                reason: data.reason || null,
+                phone_number: data.phone_number || null,
+                status: "scheduled",
+                retries: 0,
+                email: user?.email, // Include email for webhook
+                name: user?.user_metadata?.name || null, // Include user's name for webhook
+              };
+
+              let supabaseError = null;
+              let webhookError = null;
+
+              // Attempt to insert data into Supabase
+              const { error: dbError } = await supabase
+                .from("wake_calls")
+                .insert([
+                  {
+                    user_id: payload.user_id,
+                    scheduled_at: payload.scheduled_at,
+                    reason: payload.reason,
+                    phone_number: payload.phone_number,
+                    status: payload.status,
+                    retries: payload.retries,
+                  },
+                ]);
+
+              if (dbError) {
+                console.error("Error inserting call into Supabase:", dbError);
+                supabaseError = dbError;
+              }
+
+              // Attempt to send data to webhook
               try {
-                // Calculate the schedule time by combining date and time
-                const dateObj = parseISO(data.date);
-                const [hours, minutes] = data.time.split(":");
-                dateObj.setHours(parseInt(hours, 10));
-                dateObj.setMinutes(parseInt(minutes, 10));
-                dateObj.setSeconds(0);
-                dateObj.setMilliseconds(0);
-
-                const scheduleTime = dateObj.toISOString();
-
                 const response = await fetch(WEBHOOK_URL, {
                   method: "POST",
                   headers: {
                     "Content-Type": "application/json",
                   },
-                  body: JSON.stringify({
-                    ...data,
-                    schedule_time: scheduleTime,
-                    user_id: user?.id,
-                    email: user?.email,
-                  }),
+                  body: JSON.stringify(payload),
                 });
 
                 if (!response.ok) {
-                  throw new Error("Failed to schedule wake-up call");
+                  webhookError = new Error(
+                    `Webhook failed with status: ${response.status}`
+                  );
+                  console.error("Webhook error:", webhookError);
                 }
+              } catch (error) {
+                webhookError = error;
+                console.error("Error sending data to webhook:", error);
+              }
 
-                // Show success message
+              // Provide feedback to the user
+              if (!supabaseError && !webhookError) {
                 toast({
                   title: "Success!",
                   description:
-                    "Your wake-up call has been scheduled successfully.",
+                    "Your wake-up call has been scheduled successfully (Supabase and Webhook).",
                 });
-
-                // Clear form data from local storage on successful submission
+                // Clear form data only if both were successful (or adjust based on preference)
                 localStorage.removeItem(FORM_STORAGE_KEY);
-              } catch (error) {
-                console.error("Error scheduling call:", error);
+              } else if (supabaseError && webhookError) {
                 toast({
                   title: "Error",
                   description:
-                    "Failed to schedule wake-up call. Please try again.",
+                    "Failed to schedule call in Supabase AND send to webhook.",
                   variant: "destructive",
                 });
-                throw error;
+              } else if (supabaseError) {
+                toast({
+                  title: "Supabase Error",
+                  description: `Failed to save call to database: ${supabaseError.message}. Webhook call attempted.`,
+                  variant: "destructive",
+                });
+              } else if (webhookError) {
+                toast({
+                  title: "Webhook Error",
+                  description: `Failed to send data to webhook: ${
+                    webhookError instanceof Error
+                      ? webhookError.message
+                      : String(webhookError)
+                  }. Supabase insertion attempted.`,
+                  variant: "destructive",
+                });
+                // Consider if you want to clear local storage if only webhook fails but supabase succeeds
+                // localStorage.removeItem(FORM_STORAGE_KEY);
               }
             }}
           />
