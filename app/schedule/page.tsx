@@ -10,11 +10,19 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO } from "date-fns";
-import { supabase } from "../dashboard/utils"; // Import supabase client
+import { supabase } from "@/lib/supabaseClient"; // Import supabase client
 
 const FORM_STORAGE_KEY = "schedule_form_data";
-const WEBHOOK_URL =
-  "https://n8n.deployify.xyz/webhook/51124d03-6f93-4c3a-a795-6c6233520c49";
+
+// Read webhook URL from environment variable
+const WEBHOOK_URL = process.env.NEXT_PUBLIC_WEBHOOK_URL;
+
+// Ensure webhook URL is defined
+if (!WEBHOOK_URL) {
+  throw new Error(
+    "Missing Webhook URL. Make sure NEXT_PUBLIC_WEBHOOK_URL is set in your environment variables."
+  );
+}
 
 export default function SchedulePage() {
   const { user, loading: authLoading } = useAuth();
@@ -103,7 +111,7 @@ export default function SchedulePage() {
               let webhookError = null;
 
               // Attempt to insert data into Supabase
-              const { error: dbError } = await supabase
+              const { data: insertedCall, error: dbError } = await supabase
                 .from("wake_calls")
                 .insert([
                   {
@@ -114,7 +122,9 @@ export default function SchedulePage() {
                     status: payload.status,
                     retries: payload.retries,
                   },
-                ]);
+                ])
+                .select()
+                .single();
 
               if (dbError) {
                 console.error("Error inserting call into Supabase:", dbError);
@@ -123,12 +133,17 @@ export default function SchedulePage() {
 
               // Attempt to send data to webhook
               try {
-                const response = await fetch(WEBHOOK_URL, {
+                // Include the newly created call ID in the webhook payload
+                const webhookPayload = {
+                  ...payload,
+                  id: insertedCall?.id, // Add the generated Supabase row ID
+                };
+                const response = await fetch(WEBHOOK_URL!, {
                   method: "POST",
                   headers: {
                     "Content-Type": "application/json",
                   },
-                  body: JSON.stringify(payload),
+                  body: JSON.stringify(webhookPayload),
                 });
 
                 if (!response.ok) {

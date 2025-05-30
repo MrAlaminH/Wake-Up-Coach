@@ -20,7 +20,32 @@ import { useAuth } from "@/components/auth-provider";
 import { Plus } from "lucide-react";
 import Link from "next/link";
 import type { WakeCall, CallStats } from "@/types";
-import { supabase } from "./utils"; // Import supabase client
+import { supabase } from "@/lib/supabaseClient"; // Import supabase client
+import { useToast } from "@/hooks/use-toast"; // Import useToast hook
+
+// Helper function to calculate stats from a list of calls
+const calculateStats = (calls: WakeCall[]): CallStats => {
+  const totalCalls = calls.length;
+  const successfulCalls = calls.filter(
+    (call) => call.status === "completed"
+  ).length;
+  const failedCalls = calls.filter(
+    (call) => call.status === "failed" || call.status === "missed"
+  ).length;
+  const upcomingCallsCount = calls.filter(
+    (call) =>
+      new Date(call.scheduled_at) > new Date() && call.status === "scheduled"
+  ).length;
+  const successRate =
+    totalCalls === 0 ? 0 : Math.round((successfulCalls / totalCalls) * 100);
+  return {
+    totalCalls,
+    successfulCalls,
+    failedCalls,
+    upcomingCalls: upcomingCallsCount,
+    successRate,
+  };
+};
 
 export default function DashboardPage() {
   const [calls, setCalls] = useState<WakeCall[]>([]); // Initialize calls as empty array
@@ -28,9 +53,12 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true); // Add loading state
   const [error, setError] = useState<string | null>(null); // Add error state
   const { user } = useAuth();
+  const { toast } = useToast(); // Initialize useToast
 
   // Fetch data from Supabase on component mount
   useEffect(() => {
+    let subscription: any;
+
     const fetchCalls = async () => {
       setLoading(true);
       const { data, error } = await supabase
@@ -45,44 +73,43 @@ export default function DashboardPage() {
       } else {
         setCalls(data as WakeCall[]);
         // Calculate stats from fetched data
-        const totalCalls = data.length;
-        const successfulCalls = data.filter(
-          (call) => call.status === "completed"
-        ).length;
-        const failedCalls = data.filter(
-          (call) => call.status === "failed"
-        ).length;
-        const upcomingCalls = data.filter(
-          (call) =>
-            new Date(call.scheduled_at) > new Date() &&
-            call.status === "scheduled"
-        ).length;
-        const successRate =
-          totalCalls === 0
-            ? 0
-            : Math.round((successfulCalls / totalCalls) * 100);
-        setStats({
-          totalCalls,
-          successfulCalls,
-          failedCalls,
-          upcomingCalls,
-          successRate,
-        });
+        setStats(calculateStats(data as WakeCall[]));
         setLoading(false);
       }
     };
 
     fetchCalls();
+
+    // Real-time subscription
+    subscription = supabase
+      .channel("public:wake_calls")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "wake_calls" },
+        (payload) => {
+          fetchCalls(); // Refetch data on any change
+        }
+      )
+      .subscribe();
+
+    return () => {
+      if (subscription) supabase.removeChannel(subscription);
+    };
   }, []); // Empty dependency array ensures this runs once on mount
 
   const upcomingCalls = calls.filter(
     (call) =>
       new Date(call.scheduled_at) > new Date() && call.status === "scheduled"
   );
-  const pastCalls = calls.filter(
-    (call) =>
-      new Date(call.scheduled_at) <= new Date() || call.status !== "scheduled"
-  );
+  const pastCalls = calls
+    .filter(
+      (call) =>
+        new Date(call.scheduled_at) <= new Date() || call.status !== "scheduled"
+    )
+    .sort(
+      (a, b) =>
+        new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime()
+    );
 
   const handleCancelCall = async (id: string) => {
     // Make function async
@@ -91,38 +118,17 @@ export default function DashboardPage() {
     if (error) {
       console.error("Error cancelling call:", error);
       // Optionally, show an error message to the user
+      toast({
+        title: "Error",
+        description: `Failed to cancel call: ${error.message}`,
+        variant: "destructive",
+      });
     } else {
       // Update state only if delete was successful
       setCalls((prev) => {
         const updatedCalls = prev.filter((call) => call.id !== id);
         // Re-calculate stats based on updatedCalls
-        setStats((prevStats) => {
-          if (!prevStats) return null;
-          const totalCalls = updatedCalls.length;
-          const successfulCalls = updatedCalls.filter(
-            (call) => call.status === "completed"
-          ).length;
-          const failedCalls = updatedCalls.filter(
-            (call) => call.status === "failed"
-          ).length;
-          // Recalculate upcoming calls count based on the updated list
-          const upcomingCallsCount = updatedCalls.filter(
-            (call) =>
-              new Date(call.scheduled_at) > new Date() &&
-              call.status === "scheduled"
-          ).length;
-          const successRate =
-            totalCalls === 0
-              ? 0
-              : Math.round((successfulCalls / totalCalls) * 100);
-          return {
-            totalCalls,
-            successfulCalls,
-            failedCalls,
-            upcomingCalls: upcomingCallsCount,
-            successRate,
-          };
-        });
+        setStats(calculateStats(updatedCalls));
         return updatedCalls; // Return the updated calls array
       });
     }

@@ -1,35 +1,35 @@
-"use client"
+"use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Calendar, Clock, Phone, Trash2 } from "lucide-react"
-import { format } from "date-fns"
-import type { WakeCall } from "@/types"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Calendar, Clock, Phone, Trash2 } from "lucide-react";
+import { format } from "date-fns";
+import type { WakeCall } from "@/types";
 
 interface CallCardProps {
-  call: WakeCall
-  onCancel?: (id: string) => void
+  call: WakeCall;
+  onCancel?: (id: string) => void;
 }
 
 export function CallCard({ call, onCancel }: CallCardProps) {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "scheduled":
-        return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300"
+        return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300";
       case "completed":
-        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
+        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300";
       case "failed":
-        return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300"
+        return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300";
       case "missed":
-        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300"
+        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300";
       default:
-        return "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300"
+        return "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300";
     }
-  }
+  };
 
-  const scheduledDate = new Date(call.scheduled_at)
-  const isUpcoming = scheduledDate > new Date()
+  const scheduledDate = new Date(call.scheduled_at);
+  const isUpcoming = scheduledDate > new Date();
 
   return (
     <Card>
@@ -62,8 +62,6 @@ export function CallCard({ call, onCancel }: CallCardProps) {
           </div>
         )}
 
-        {call.retries > 0 && <div className="text-sm text-muted-foreground">Retries: {call.retries}</div>}
-
         {isUpcoming && call.status === "scheduled" && onCancel && (
           <div className="pt-2">
             <Button
@@ -79,5 +77,5 @@ export function CallCard({ call, onCancel }: CallCardProps) {
         )}
       </CardContent>
     </Card>
-  )
+  );
 }
