@@ -1,10 +1,10 @@
-# ☀️ Student Wake-Up Coach – Motivational Alarm Call Agent
+# ☀️ Wake-Up Coach – Motivational Alarm Call Agent
 
 A smart, motivational wake-up solution built with **Next.js**, powered by **Supabase** for backend/auth, and integrated with **Vapi.ai** to deliver personalized AI voice calls. Designed to help students start their day with intention, confidence, and clarity.
 
 ## 🎯 What It Does
 
-Student Wake-Up Coach is an AI-powered **wake-up call agent** that calls students every morning to deliver:
+Wake-Up Coach is an AI-powered **wake-up call agent** that calls students every morning to deliver:
 
 - ✅ A **motivational quote or line** to energize their mindset.
 - 📚 A personalized **daily school plan**, such as:
