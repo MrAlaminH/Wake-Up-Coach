@@ -70,6 +70,7 @@ Create a `.env.local` file and fill it with your keys:
 ```env
 NEXT_PUBLIC_SUPABASE_URL=your-supabase-url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
+NEXT_PUBLIC_WEBHOOK_URL=Your_webhook_url
 ```
 
 ### 4. Run the development server
@@ -142,7 +143,3 @@ This project is licensed under the [MIT License](LICENSE).
 If you love this idea, ⭐️ the repo and share with a student who needs a wake-up call!
 
 Got questions? Reach out or open an issue — we're here to help.
-
-```
-
-```
